@@ -1,30 +1,25 @@
 #!/usr/bin/env bash
-# This script audits DNS records for a domain's subdomains.
+# Ignore SC2086
 
-# shellcheck disable=SC2086
-query_subdomain() {
-    local domain="$1"
-    local subdomain="$2"
+domain=$1
+subdomain=$2
 
-    dig "${subdomain}.${domain}" +noall +answer | awk -v sub="$subdomain" '
-        NR == 1 {
-            printf "The subdomain %s is a %s record and points to %s\n", sub, $4, $5
-        }
-    '
+get_info() {
+    local subd=$1
+    result=$(dig ${subd}.${domain} | awk '/ANSWER SECTION:/ {getline; print $1, $4, $5}')
+
+    name=$(echo $result | awk '{print $1}')
+    type=$(echo $result | awk '{print $2}')
+    ip=$(echo $result | awk '{print $3}')
+
+    echo "The subdomain ${subd} is a ${type} record and points to ${ip}"
 }
 
-main() {
-    local domain="$1"
-    local subdomain="$2"
-
-    if [ -n "$subdomain" ]; then
-        query_subdomain "$domain" "$subdomain"
-    else
-        query_subdomain "$domain" "www"
-        query_subdomain "$domain" "lb-01"
-        query_subdomain "$domain" "web-01"
-        query_subdomain "$domain" "web-02"
-    fi
-}
-
-main "$@"
+if [ -z "$subdomain" ]; then
+    for subd in www lb-01 web-01 web-02
+    do
+        get_info $subd
+    done
+else
+    get_info $subdomain
+fi
