@@ -1,30 +1,29 @@
 #!/usr/bin/env bash
-# This script audits DNS records for a domain's subdomains.
+# Script that displays subdomain DNS information
 
-# shellcheck disable=SC2086
-query_subdomain() {
-    local domain="$1"
-    local subdomain="$2"
+# Function that does the actual DNS lookup
+check_subdomain() {
+    local domain=$1
+    local subdomain=$2
 
-    dig "${subdomain}.${domain}" +noall +answer | awk -v sub="$subdomain" '
-        NR == 1 {
-            printf "The subdomain %s is a %s record and points to %s\n", sub, $4, $5
-        }
-    '
+    # dig queries DNS, awk extracts record type and destination
+    result=$(dig "$subdomain.$domain" | grep -A1 'ANSWER SECTION:' | tail -1)
+    record_type=$(echo "$result" | awk '{print $4}')
+    destination=$(echo "$result" | awk '{print $5}')
+
+    echo "The subdomain $subdomain is a $record_type record and points to $destination"
 }
 
-main() {
-    local domain="$1"
-    local subdomain="$2"
+domain=$1
+subdomain=$2
 
-    if [ -n "$subdomain" ]; then
-        query_subdomain "$domain" "$subdomain"
-    else
-        query_subdomain "$domain" "www"
-        query_subdomain "$domain" "lb-01"
-        query_subdomain "$domain" "web-01"
-        query_subdomain "$domain" "web-02"
-    fi
-}
-
-main "$@"
+# If only domain is given, check all 4 default subdomains in order
+if [ -z "$subdomain" ]; then
+    check_subdomain "$domain" "www"
+    check_subdomain "$domain" "lb-01"
+    check_subdomain "$domain" "web-01"
+    check_subdomain "$domain" "web-02"
+else
+    # If subdomain is also given, check only that one
+    check_subdomain "$domain" "$subdomain"
+fi
